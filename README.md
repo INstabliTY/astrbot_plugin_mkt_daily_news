@@ -70,15 +70,19 @@ git clone [https://github.com/INstabliTY/astrbot_plugin_mkt_daily_news.git](http
 ## ⚙️ 配置说明
 在 AstrBot WebUI 的“插件配置”页面，你可以可视化修改以下参数：
 
-每日定时推送时间: 24小时制，例如 08:00。
+*每日定时推送时间: 24小时制。
+> 例如 08:00。
 
-推送目标群组/用户 ID: 极其关键！请带上平台前缀。例如向 Telegram 个人推送请填写：telegram:FriendMessage:你的UID；向 QQ 群推送请填写 aiocqhttp:GroupMessage:你的群号。
+*推送目标群组/用户 ID: 请带上平台前缀。
+> 例如向 Telegram 个人推送请填写：telegram:FriendMessage:你的UID
+> 向 QQ 群推送请填写 aiocqhttp:GroupMessage:你的群号。
 
-所在城市: 用于天气预报，如 北京。
+*所在城市: 用于天气预报
+> 如 北京。
 
-汇率 API Key: 前往 ExchangeRate-API 免费注册获取。
+*汇率 API Key: 前往 ExchangeRate-API 免费注册获取。
 
-大模型 API Key: 选填 DeepSeek 和 Kimi 的 API Key 用于资产监控。
+*大模型 API Key: 选填 DeepSeek 和 Kimi 的 API Key 用于资产监控。
 
 ---
 
