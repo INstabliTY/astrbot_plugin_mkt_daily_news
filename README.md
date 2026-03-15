@@ -38,7 +38,7 @@
 提供以下三种安装方式，推荐使用方式一：
 
 ### 1. AstrBot 插件市场下载安装 (推荐)
-直接在 AstrBot 的 WebUI 管理面板的“插件市场”中，搜索 `astrbot_plugin_mkt_daily_news` 并点击安装即可。
+直接在 AstrBot 的 WebUI 管理面板的“插件市场”中，搜索 `资讯助理` 并点击安装即可。
 
 ### 2. 指令安装
 向你的机器人发送以下指令直接拉取安装：
@@ -50,17 +50,17 @@
 进入 AstrBot 的插件目录，使用 Git 克隆本仓库：
 ```text
 cd data/plugins/
-git clone [https://github.com/INstabliTY/astrbot_plugin_mkt_daily_news.git](https://github.com/INstabliTY/astrbot_plugin_mkt_daily_news.git)
+git clone [https://github.com/INstabliTY/astrbot_plugin_Information_Assistants.git](https://github.com/INstabliTY/astrbot_plugin_Information_Assistant.git)
 ```
    📝 注意：
-> 请确保克隆后的文件夹名称严格为 astrbot_plugin_mkt_daily_news
+> 请确保克隆后的文件夹名称严格为 astrbot_plugin_mkt_Information_Assistant
 > 
 > ⚠️ 安装完成后，请务必重启 AstrBot 主程序使插件生效！
 
 ---
 
 ## 💻 核心指令
-指令 | 说明 | 示例 |
+| 指令 | 说明 | 示例 |
 | :--- | :--- | :--- |
 | /今日情报 | 立即手动触发一次完整的商业情报推送 | 今日情报 |
 | /添加提醒 | 向本地日历中添加一条待办事项 | 添加提醒 2026-03-16 记得微观经济学小测 |
