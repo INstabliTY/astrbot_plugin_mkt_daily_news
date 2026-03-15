@@ -75,6 +75,7 @@ git clone [https://github.com/INstabliTY/astrbot_plugin_mkt_daily_news.git](http
 
 *推送目标群组/用户 ID: 请带上平台前缀。
 > 例如向 Telegram 个人推送请填写：telegram:FriendMessage:你的UID
+> 
 > 向 QQ 群推送请填写 aiocqhttp:GroupMessage:你的群号。
 
 *所在城市: 用于天气预报
