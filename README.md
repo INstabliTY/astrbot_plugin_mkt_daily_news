@@ -6,7 +6,7 @@
 
 **让你的 AstrBot 化身最强个人情报中枢：天气、日程、商业速报、资产监控一网打尽！**
 
-[![version](https://img.shields.io/badge/version-1.0.0-blue.svg)](#) [![license](https://img.shields.io/badge/license-MIT-green.svg)](#) [![AstrBot](https://img.shields.io/badge/AstrBot->=3.0.0-orange.svg)](#)
+[![version](https://img.shields.io/badge/version-1.0.0-blue.svg)](#) [![license](https://img.shields.io/badge/license-MIT-green.svg)](#) [![AstrBot](https://img.shields.io/badge/AstrBot->=4.20.0-orange.svg)](#)
 
 </div>
 
