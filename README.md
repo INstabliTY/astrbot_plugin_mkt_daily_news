@@ -6,7 +6,7 @@
 
 **让你的 AstrBot 化身最强个人情报中枢：天气、日程、新闻速报、资产监控一网打尽！**
 
-[![version](https://img.shields.io/badge/version-1.0.1-blue.svg)](#) [![license](https://img.shields.io/badge/license-MIT-green.svg)](#) [![AstrBot](https://img.shields.io/badge/AstrBot->=4.20.0-orange.svg)](#)
+[![version](https://img.shields.io/badge/version-1.1.0-blue.svg)](#) [![license](https://img.shields.io/badge/license-MIT-green.svg)](#) [![AstrBot](https://img.shields.io/badge/AstrBot->=4.20.0-orange.svg)](#)
 
 </div>
 
@@ -143,7 +143,28 @@ git clone [https://github.com/INstabliTY/astrbot_plugin_Information_Assistants.g
 ---
 
 ## 📅 更新日志
-### v1.0.0 (当前版本)
+
+## 🚀 v1.1.0 (当前版本)
+* **重构底层架构**：打通双通道录入机制，待办事项数据“物理焊死”永不丢失。
+* **全新 UI 面板**：全面升级“卡片式”可视化配置面板，支持模块级独立开关。
+* **原生记忆打通**：支持大模型自动提取历史定时任务，并无缝迁移至本地日程表。
+* **修复已知问题**：修复了时区读取异常与极端情况下的 JSON 解析崩溃。
+
+<details>
+<summary><b>📜 点击展开查看历史版本 (History Changelog)</b></summary>
+
+<br>
+
+**v1.0.3**
+* ⚙️ 加入定时推送的全局总开关与独立功能模块开关。
+
+**v1.0.2**
+* 🏷️ 插件正式全面更名为「资讯助理 Information_Assistant」。
+
+**v1.0.1**
+* 💰 新增 API 余额监控功能 (支持 DeepSeek 与 Moonshot/Kimi)。
+
+**v1.0.0**
 
 * 🎉 首次正式发布！
 
