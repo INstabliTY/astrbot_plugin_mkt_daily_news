@@ -6,7 +6,7 @@
 
 **让你的 AstrBot 化身最强个人情报中枢：天气、日程、新闻速报、资产监控一网打尽！**
 
-[![version](https://img.shields.io/badge/version-1.0.0-blue.svg)](#) [![license](https://img.shields.io/badge/license-MIT-green.svg)](#) [![AstrBot](https://img.shields.io/badge/AstrBot->=4.20.0-orange.svg)](#)
+[![version](https://img.shields.io/badge/version-1.0.1-blue.svg)](#) [![license](https://img.shields.io/badge/license-MIT-green.svg)](#) [![AstrBot](https://img.shields.io/badge/AstrBot->=4.20.0-orange.svg)](#)
 
 </div>
 
@@ -53,10 +53,11 @@
 cd data/plugins/
 git clone [https://github.com/INstabliTY/astrbot_plugin_Information_Assistants.git](https://github.com/INstabliTY/astrbot_plugin_Information_Assistant.git)
 ```
-   📝 注意：
-> 请确保克隆后的文件夹名称严格为 astrbot_plugin_mkt_Information_Assistant
-> 
-> ⚠️ 安装完成后，请务必重启 AstrBot 主程序使插件生效！
+  📝 注意：
+  
+  > 请确保克隆后的文件夹名称严格为 astrbot_plugin_mkt_Information_Assistant
+  > 
+  > ⚠️ 安装完成后，请务必重启 AstrBot 主程序使插件生效！
 
 ---
 
@@ -72,15 +73,15 @@ git clone [https://github.com/INstabliTY/astrbot_plugin_Information_Assistants.g
 在 AstrBot WebUI 的“插件配置”页面，你可以可视化修改以下参数：
 
 * 每日定时推送时间: 24小时制。
-> 例如 08:00。
+  > 例如 08:00。
 
 * 推送目标群组/用户 ID: 请带上平台前缀。
-> 例如向 Telegram 个人推送请填写：telegram:FriendMessage:你的UID
-> 
-> 向 QQ 群推送请填写 aiocqhttp:GroupMessage:你的群号。
+  > 例如向 Telegram 个人推送请填写：telegram:FriendMessage:你的UID
+  > 
+  > 向 QQ 群推送请填写 aiocqhttp:GroupMessage:你的群号。
 
 * 所在城市: 用于天气预报
-> 如 北京。
+  > 如 北京。
 
 * 汇率 API Key: 前往 ExchangeRate-API 免费注册获取。
 
@@ -99,11 +100,11 @@ git clone [https://github.com/INstabliTY/astrbot_plugin_Information_Assistants.g
 | AI 额度 | DeepSeek 账户余额 | DeepSeek 官方 | https://platform.deepseek.com/ | 官方 API
 | AI 额度 | Kimi 账户余额 | Moonshot 官方 | https://platform.moonshot.cn/ | 官方 API
 
-   📝 注意：
+  📝 注意：
 
-> 汇率 数据来源 ExchangeRate-API，请自行注册并获取 API 密钥填入配置。
-> 
-> AI 额度 数据来源使用官方 API，请在配置页面填写您自己的 API 密钥。如果未填写，看板将自动跳过报错并显示“未配置”。
+  > 汇率 数据来源 ExchangeRate-API，请自行注册并获取 API 密钥填入配置。
+  > 
+  > AI 额度 数据来源使用官方 API，请在配置页面填写您自己的 API 密钥。如果未填写，看板将自动跳过报错并显示“未配置”。
 
 ---
 
@@ -112,20 +113,23 @@ git clone [https://github.com/INstabliTY/astrbot_plugin_Information_Assistants.g
 
 迁移步骤：
 
-第一步：唤醒 AI 记忆
-直接在聊天框向机器人发送以下指令，让它列出目前的所有任务：
+* 第一步：唤醒 AI 记忆
+  
+  直接在聊天框向机器人发送以下指令，让它列出目前的所有任务：
 
-请列出系统里所有未完成的待办事项和定时任务。
+  > 请列出系统里所有未完成的待办事项和定时任务。
 
-第二步：下达自动化迁移指令
-等 AI 将任务列表打印出来后，直接复制并发送以下“强制执行指令”：
+* 第二步：下达自动化迁移指令
 
-太好了！现在请你对着刚才列出的这个任务列表，直接、立刻、逐一调用 "add_information_reminder" 工具，把它们全部重新保存到我的本地日程表中！日期格式必须严格转换为 YYYY-MM-DD。请不要解释，直接执行工具录入，完成后向我汇报！
+  等 AI 将任务列表打印出来后，直接复制并发送以下“强制执行指令”：
 
-第三步：验证迁移结果
-等待 AI 回复“已全部录入完毕”（并且你会看到它触发了本插件的成功提示），随后在聊天框发送本插件的触发指令：
+  > 请你对着刚才列出的这个任务列表，直接、立刻、逐一调用 "add_information_reminder" 工具，把它们全部重新保存到我的本地日程表中。日期格式必须严格转换为 YYYY-MM-DD。请不要解释，直接执行工具录入，完成后向我汇报！
 
-/今日情报
+* 第三步：验证迁移结果
+
+  等待 AI 回复“已全部录入完毕”（并且你会看到它触发了本插件的成功提示），随后在聊天框发送本插件的触发指令：
+
+  > /今日情报
 
 ---
 
