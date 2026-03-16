@@ -53,7 +53,7 @@
 cd data/plugins/
 git clone [https://github.com/INstabliTY/astrbot_plugin_Information_Assistants.git](https://github.com/INstabliTY/astrbot_plugin_Information_Assistant.git)
 ```
-  📝 注意：
+### 📝 注意：
   
   > 请确保克隆后的文件夹名称严格为 astrbot_plugin_mkt_Information_Assistant
   > 
@@ -100,7 +100,7 @@ git clone [https://github.com/INstabliTY/astrbot_plugin_Information_Assistants.g
 | AI 额度 | DeepSeek 账户余额 | DeepSeek 官方 | https://platform.deepseek.com/ | 官方 API
 | AI 额度 | Kimi 账户余额 | Moonshot 官方 | https://platform.moonshot.cn/ | 官方 API
 
-  📝 注意：
+### 📝 注意：
 
   > 汇率 数据来源 ExchangeRate-API，请自行注册并获取 API 密钥填入配置。
   > 
@@ -111,7 +111,7 @@ git clone [https://github.com/INstabliTY/astrbot_plugin_Information_Assistants.g
 ## 🔄 历史待办事项无缝迁移指南
 如果你在安装《资讯助理 (Information_Assistant)》之前，就已经通过自然语言让大模型帮你记下了许多待办事项（系统默认会将其存入底层的 CronJob 数据库中），你可以通过一句简单的“魔法指令”，让 AI 自动将这些历史数据迁移到本插件的独立日程表（reminders.json）中。
 
-迁移步骤：
+### 迁移步骤：
 
 * 第一步：唤醒 AI 记忆
   
@@ -144,7 +144,7 @@ git clone [https://github.com/INstabliTY/astrbot_plugin_Information_Assistants.g
 
 ## 📅 更新日志
 
-## 🚀 v1.1.0 (当前版本)
+### 🚀 v1.1.0 (当前版本)
 * **重构底层架构**：打通双通道录入机制，待办事项数据“物理焊死”永不丢失。
 * **全新 UI 面板**：全面升级“卡片式”可视化配置面板，支持模块级独立开关。
 * **原生记忆打通**：支持大模型自动提取历史定时任务，并无缝迁移至本地日程表。
