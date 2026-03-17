@@ -4,7 +4,7 @@ AstrBot 资讯助理插件 (Information Assistant)
 聚合天气、提醒、纯文本新闻、汇率与 API 余额监控。
 
 Author : INstabliTY
-Version: v1.2.0
+Version: v1.2.1
 """
 
 import asyncio
@@ -17,7 +17,7 @@ import aiohttp
 
 from astrbot.api import logger
 from astrbot.api.event import AstrMessageEvent, filter
-from astrbot.api.star import Context, Star, register
+from astrbot.api.star import Context, Star, StarTools, register
 from astrbot.core.message.components import Plain
 from astrbot.core.message.message_event_result import MessageChain
 
@@ -36,16 +36,36 @@ _DIVIDER = "\n\n---------------------------\n\n"
     "astrbot_plugin_Information_Assistant",
     "资讯助理",
     "聚合天气、提醒、纯文本新闻与汇率",
-    "1.2.0",
+    "1.2.1",
 )
 class InformationAssistantPlugin(Star):
     """资讯助理插件主类。"""
 
     def __init__(self, context: Context, config: dict | None = None) -> None:
         super().__init__(context)
-        cfg = config or {}
+        self._parse_config(config or {})
 
-        # --- 工具函数：兼容新版嵌套结构与旧版扁平结构 ---
+        # 数据持久化路径：通过框架提供的 StarTools.get_data_dir() 获取规范目录，
+        # 返回 pathlib.Path 对象，防止插件更新/重装时数据被覆盖。
+        data_dir = StarTools.get_data_dir()
+        data_dir.mkdir(parents=True, exist_ok=True)
+        self.reminders_file: str = str(data_dir / "reminders.json")
+        self._ensure_reminders_file()
+
+        # 启动定时推送任务（使用框架推荐的 asyncio.create_task）
+        self._push_task: asyncio.Task | None = None
+        if self.enable_push:
+            self._push_task = asyncio.create_task(self._push_loop())
+            logger.info(f"[资讯助理] 定时任务已启动，每天 {self.push_time} 推送。")
+        else:
+            logger.info("[资讯助理] 定时推送已关闭，以纯被动模式运行。")
+
+    def _parse_config(self, cfg: dict) -> None:
+        """
+        从配置字典中解析并绑定所有插件参数。
+        兼容新版 UI 的嵌套卡片结构（{section: {key: value}}）
+        与旧版缓存的扁平结构（{key: value}）。
+        """
         def _get(section: str, key: str, default):
             section_data = cfg.get(section)
             if isinstance(section_data, dict) and key in section_data:
@@ -89,21 +109,6 @@ class InformationAssistantPlugin(Star):
 
         # 新闻模块
         self.enable_news: bool = _get("news_settings", "enable_news", True)
-
-        # 数据持久化路径：遵循官方指南，存放于 data/ 目录而非插件自身目录，
-        # 防止插件更新/重装时数据被覆盖。
-        data_dir = os.path.join("data", "plugin_data", "information_assistant")
-        os.makedirs(data_dir, exist_ok=True)
-        self.reminders_file: str = os.path.join(data_dir, "reminders.json")
-        self._ensure_reminders_file()
-
-        # 启动定时推送任务（使用框架推荐的 asyncio.create_task）
-        self._push_task: asyncio.Task | None = None
-        if self.enable_push:
-            self._push_task = asyncio.create_task(self._push_loop())
-            logger.info(f"[资讯助理] 定时任务已启动，每天 {self.push_time} 推送。")
-        else:
-            logger.info("[资讯助理] 定时推送已关闭，以纯被动模式运行。")
 
     # -----------------------------------------------------------------------
     # 初始化工具方法
@@ -177,9 +182,14 @@ class InformationAssistantPlugin(Star):
                 f"🌧️ 降水概率：{rain_prob}%\n"
                 f"{umbrella}\n{clothes}"
             )
-        except Exception:
-            logger.debug(f"[资讯助理] 天气获取异常：{traceback.format_exc()}")
-            return f"🌤️ 【{self.city}天气】数据获取异常。"
+        except aiohttp.ClientError as exc:
+            logger.warning(f"[资讯助理] 天气请求网络错误：{exc}")
+            return f"🌤️ 【{self.city}天气】网络请求失败。"
+        except (KeyError, IndexError, ValueError) as exc:
+            logger.warning(f"[资讯助理] 天气数据解析错误：{exc}")
+            return f"🌤️ 【{self.city}天气】数据解析异常。"
+        except asyncio.TimeoutError:
+            return f"🌤️ 【{self.city}天气】请求超时。"
 
     # -----------------------------------------------------------------------
     # 2. 提醒模块
@@ -319,9 +329,14 @@ class InformationAssistantPlugin(Star):
             if not lines:
                 return "📊 【汇率】暂无有效汇率数据。"
             return f"📊 【实时汇率】(100外币 兑 {self.base_currency})\n" + "\n".join(lines)
-        except Exception:
-            logger.debug(f"[资讯助理] 汇率获取异常：{traceback.format_exc()}")
-            return "📊 【汇率】数据获取失败。"
+        except aiohttp.ClientError as exc:
+            logger.warning(f"[资讯助理] 汇率请求网络错误：{exc}")
+            return "📊 【汇率】网络请求失败。"
+        except (KeyError, ValueError, json.JSONDecodeError) as exc:
+            logger.warning(f"[资讯助理] 汇率数据解析错误：{exc}")
+            return "📊 【汇率】数据解析异常。"
+        except asyncio.TimeoutError:
+            return "📊 【汇率】请求超时。"
 
     # -----------------------------------------------------------------------
     # 5. API 余额监控
@@ -345,8 +360,12 @@ class InformationAssistantPlugin(Star):
                     f"{i.get('total_balance')} {i.get('currency')}" for i in infos
                 )
                 return f"- DeepSeek: {balances}"
-        except Exception:
-            logger.debug(f"[资讯助理] DeepSeek 余额查询异常：{traceback.format_exc()}")
+        except aiohttp.ClientError as exc:
+            logger.warning(f"[资讯助理] DeepSeek 请求网络错误：{exc}")
+        except (KeyError, ValueError, json.JSONDecodeError) as exc:
+            logger.warning(f"[资讯助理] DeepSeek 数据解析错误：{exc}")
+        except asyncio.TimeoutError:
+            pass
         return "- DeepSeek: 查询异常"
 
     async def fetch_moonshot_balance(self, session: aiohttp.ClientSession) -> str:
@@ -363,8 +382,12 @@ class InformationAssistantPlugin(Star):
                 data = await resp.json()
             available = data.get("data", {}).get("available_balance", 0)
             return f"- Kimi: ￥{available:.2f}"
-        except Exception:
-            logger.debug(f"[资讯助理] Kimi 余额查询异常：{traceback.format_exc()}")
+        except aiohttp.ClientError as exc:
+            logger.warning(f"[资讯助理] Kimi 请求网络错误：{exc}")
+        except (KeyError, ValueError, json.JSONDecodeError) as exc:
+            logger.warning(f"[资讯助理] Kimi 数据解析错误：{exc}")
+        except asyncio.TimeoutError:
+            pass
         return "- Kimi: 查询异常"
 
     # -----------------------------------------------------------------------
@@ -522,7 +545,9 @@ class InformationAssistantPlugin(Star):
             content(string): 待办事项的精简内容描述。
         """
         result = await self._add_reminder(date, content)
-        yield event.plain_result(result)
+        # llm_tool 的返回值会作为工具执行结果交回给大模型进行推理，
+        # 使用 return 而非 yield，确保模型能收到明确的执行结果。
+        return result
 
     # -----------------------------------------------------------------------
     # 生命周期
