@@ -4,7 +4,7 @@ AstrBot 资讯助理插件 (Information Assistant)
 聚合天气、提醒、纯文本新闻、汇率与 API 余额监控。
 
 Author : INstabliTY
-Version: v1.2.1
+Version: v1.2.2
 """
 
 import asyncio
@@ -36,7 +36,7 @@ _DIVIDER = "\n\n---------------------------\n\n"
     "astrbot_plugin_Information_Assistant",
     "资讯助理",
     "聚合天气、提醒、纯文本新闻与汇率",
-    "1.2.1",
+    "1.2.2",
 )
 class InformationAssistantPlugin(Star):
     """资讯助理插件主类。"""
@@ -51,6 +51,8 @@ class InformationAssistantPlugin(Star):
         data_dir.mkdir(parents=True, exist_ok=True)
         self.reminders_file: str = str(data_dir / "reminders.json")
         self._ensure_reminders_file()
+        # 文件操作锁：防止并发写入时后写覆盖先写，导致提醒数据丢失。
+        self._file_lock: asyncio.Lock = asyncio.Lock()
 
         # 启动定时推送任务（使用框架推荐的 asyncio.create_task）
         self._push_task: asyncio.Task | None = None
@@ -77,7 +79,15 @@ class InformationAssistantPlugin(Star):
         # 全局推送设置
         self.enable_push: bool = _get("push_settings", "enable_push", True)
         self.push_time: str = _get("push_settings", "push_time", "08:00")
-        self.target_groups: list[str] = _get("push_settings", "target_groups", [])
+        raw_groups = _get("push_settings", "target_groups", [])
+        # 兼容字符串配置（如误填 "12345"）和标准列表两种形式
+        if isinstance(raw_groups, list):
+            self.target_groups: list[str] = [str(g) for g in raw_groups if g]
+        elif isinstance(raw_groups, str) and raw_groups.strip():
+            # 单个字符串视为逗号分隔的列表
+            self.target_groups = [g.strip() for g in raw_groups.split(",") if g.strip()]
+        else:
+            self.target_groups = []
         self.timezone_offset: float = self._parse_tz_offset(
             _get("push_settings", "timezone_offset", "10")
         )
@@ -95,12 +105,18 @@ class InformationAssistantPlugin(Star):
         self.base_currency: str = _get(
             "exchange_settings", "base_currency", "CNY"
         ).upper()
-        raw_currencies: str = _get(
+        raw_currencies = _get(
             "exchange_settings", "target_currencies", "USD,JPY,EUR,GBP,HKD,AUD"
         )
-        self.target_currencies: list[str] = [
-            c.strip().upper() for c in raw_currencies.split(",") if c.strip()
-        ]
+        # 兼容配置中心返回 list（多选框）或 str（逗号分隔）两种形式
+        if isinstance(raw_currencies, list):
+            self.target_currencies: list[str] = [
+                c.strip().upper() for c in raw_currencies if isinstance(c, str) and c.strip()
+            ]
+        else:
+            self.target_currencies = [
+                c.strip().upper() for c in str(raw_currencies).split(",") if c.strip()
+            ]
 
         # 余额监控
         self.enable_balance: bool = _get("balance_settings", "enable_balance", True)
@@ -196,7 +212,11 @@ class InformationAssistantPlugin(Star):
     # -----------------------------------------------------------------------
 
     async def _load_reminders(self) -> list[dict]:
-        """从磁盘异步读取提醒列表。"""
+        """
+        从磁盘异步读取提醒列表，并对结构进行校验与清洗。
+        确保返回值始终是 list[dict]，且每个元素包含合法的 date/content 字段，
+        防止文件损坏或格式异常导致后续操作崩溃。
+        """
         def _read():
             if not os.path.exists(self.reminders_file):
                 return []
@@ -204,21 +224,53 @@ class InformationAssistantPlugin(Star):
                 return json.load(f)
 
         try:
-            return await asyncio.to_thread(_read)
-        except (json.JSONDecodeError, OSError):
-            logger.warning("[资讯助理] reminders.json 读取失败，已返回空列表。")
+            raw = await asyncio.to_thread(_read)
+        except json.JSONDecodeError:
+            logger.warning("[资讯助理] reminders.json JSON 解析失败，已返回空列表。")
+            return []
+        except OSError as exc:
+            logger.warning(f"[资讯助理] reminders.json 读取 IO 错误：{exc}")
             return []
 
-    async def _save_reminders(self, reminders: list[dict]) -> None:
-        """将提醒列表异步写入磁盘。"""
-        def _write():
-            with open(self.reminders_file, "w", encoding="utf-8") as f:
-                json.dump(reminders, f, ensure_ascii=False, indent=2)
+        # 结构校验：确保是列表，且每个元素是含 date/content 字符串字段的字典
+        if not isinstance(raw, list):
+            logger.warning(
+                f"[资讯助理] reminders.json 根结构非列表（实为 {type(raw).__name__}），已重置。"
+            )
+            return []
 
-        try:
-            await asyncio.to_thread(_write)
-        except OSError as exc:
-            logger.error(f"[资讯助理] 写入提醒文件失败：{exc}")
+        valid: list[dict] = []
+        for item in raw:
+            if (
+                isinstance(item, dict)
+                and isinstance(item.get("date"), str)
+                and isinstance(item.get("content"), str)
+            ):
+                valid.append(item)
+            else:
+                logger.debug(f"[资讯助理] 跳过不合法的提醒条目：{item!r}")
+        return valid
+
+    async def _save_reminders(self, reminders: list[dict]) -> None:
+        """
+        将提醒列表原子性地写入磁盘，并使用文件锁防止并发竞态。
+
+        写入策略：先写临时文件，再用 os.replace() 原子替换目标文件。
+        即使写入过程中断，也不会损坏已有的 reminders.json。
+        asyncio.Lock 确保同一时刻只有一个协程持有写权限。
+        """
+        tmp_file = self.reminders_file + ".tmp"
+
+        def _atomic_write():
+            with open(tmp_file, "w", encoding="utf-8") as f:
+                json.dump(reminders, f, ensure_ascii=False, indent=2)
+            os.replace(tmp_file, self.reminders_file)
+
+        async with self._file_lock:
+            try:
+                await asyncio.to_thread(_atomic_write)
+            except OSError as exc:
+                logger.error(f"[资讯助理] 原子写入提醒文件失败：{exc}")
 
     async def _add_reminder(self, date_str: str, content: str) -> str:
         """
@@ -258,7 +310,7 @@ class InformationAssistantPlugin(Star):
                 d = datetime.datetime.strptime(r["date"], "%Y-%m-%d").strftime(
                     "%Y-%m-%d"
                 )
-            except (ValueError, KeyError):
+            except (ValueError, KeyError, TypeError):
                 continue
             if d == today_str:
                 today_items.append(r)
@@ -267,11 +319,11 @@ class InformationAssistantPlugin(Star):
 
         parts: list[str] = []
         if today_items:
-            lines = "\n".join(f"✅ {r['content']}" for r in today_items)
+            lines = "\n".join(f"✅ {r.get('content', '')}" for r in today_items)
             parts.append(f"📝 【今日待办】\n{lines}")
         if week_items:
             lines = "\n".join(
-                f"📅 {r['date'][5:]}: {r['content']}" for r in week_items
+                f"📅 {r.get('date', '?')[5:]}: {r.get('content', '')}" for r in week_items
             )
             parts.append(f"📝 【本周预警】\n{lines}")
 
@@ -300,7 +352,14 @@ class InformationAssistantPlugin(Star):
                         f"{i}. {item}" for i, item in enumerate(news_items, 1)
                     )
                     return f"📰 【每日60s纯文本速报】\n\n{body}"
-            except Exception:
+            except aiohttp.ClientError as exc:
+                logger.warning(f"[资讯助理] 新闻接口 {url} 网络错误：{exc}")
+                continue
+            except (json.JSONDecodeError, KeyError) as exc:
+                logger.warning(f"[资讯助理] 新闻接口 {url} 数据解析错误：{exc}")
+                continue
+            except asyncio.TimeoutError:
+                logger.warning(f"[资讯助理] 新闻接口 {url} 请求超时，尝试备用接口。")
                 continue
         return "📰 【新闻速报】获取失败，接口波动。"
 
