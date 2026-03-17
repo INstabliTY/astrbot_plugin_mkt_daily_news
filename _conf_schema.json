@@ -1,65 +1,83 @@
 {
   "push_settings": {
-    "description": "🚀 全局推送设置",
-    "hint": "控制资讯助理的定时推送与时区",
+    "description": "🚀 推送设置",
+    "hint": "控制每日情报的定时推送目标与时区",
     "type": "object",
     "items": {
       "enable_push": {
         "description": "[主开关] 启用每日定时推送",
         "type": "bool",
         "default": true,
-        "hint": "关闭后将只做被动响应，不再自动发送早报"
+        "hint": "关闭后插件只响应手动指令，不再自动推送早报"
       },
       "push_time": {
-        "description": "每日定时推送时间",
+        "description": "每日推送时间",
         "type": "string",
         "default": "08:00",
-        "hint": "24小时制，如 08:30"
+        "hint": "24小时制，格式 HH:MM，如 08:30。修改后需重载插件生效"
       },
       "target_groups": {
-        "description": "推送目标群组/用户 ID",
+        "description": "推送目标 ID 列表",
         "type": "list",
         "default": [],
-        "hint": "平台/类型/目标ID，例telegram:FriendMessage:你的ID"
+        "hint": "格式：平台:消息类型:目标ID。Telegram 私聊填 telegram:FriendMessage:你的数字ID；QQ群填 aiocqhttp:GroupMessage:群号。可填多个，逐条推送"
       },
       "timezone_offset": {
+        "description": "运行时区（UTC 偏移量）",
         "type": "string",
-        "description": "插件运行时区 (UTC 偏移量)",
-        "hint": "中国大陆选 8，澳洲东部选 10 (夏令时 11)",
-        "default": "10"
+        "default": "8",
+        "hint": "填整数或小数。中国大陆 +8；澳洲东部标准时 +10，夏令时 +11；日本 +9"
       }
     }
   },
   "weather_settings": {
-    "description": "🌤️ 天气预报模块",
+    "description": "🌤️ 天气模块",
+    "hint": "数据来自 Open-Meteo（免费，无需 API Key）",
     "type": "object",
     "items": {
       "enable_weather": {
-        "description": "[开关] 启用天气模块",
+        "description": "[开关] 启用天气与穿衣建议",
         "type": "bool",
-        "default": true
+        "default": true,
+        "hint": "开启后每日情报头部展示当日气温、降水概率及穿衣建议"
       },
       "city": {
-        "description": "所在城市",
+        "description": "城市名称",
         "type": "string",
-        "default": "北京",
-        "hint": "输入城市中文，如：上海"
+        "default": "上海",
+        "hint": "支持中英文城市名，如：上海 / Brisbane / Tokyo。填写后若获取失败，请检查拼写是否与地图上一致"
       }
     }
   },
   "reminder_settings": {
-    "description": "📝 待办提醒模块",
+    "description": "📝 提醒模块",
+    "hint": "自动读取 AstrBot 系统 cron_jobs（通过与 AI 对话添加的定时提醒）+ 插件本地 reminders.json（/添加提醒 指令写入）。两路合并去重后经 AI 提炼为简洁摘要展示",
     "type": "object",
     "items": {
       "enable_reminders": {
         "description": "[开关] 启用待办提醒模块",
         "type": "bool",
-        "default": true
+        "default": true,
+        "hint": "关闭后情报中不包含提醒事项板块"
+      },
+      "reminder_provider": {
+        "description": "用于提炼提醒摘要的 AI 模型",
+        "type": "string",
+        "default": "",
+        "hint": "留空则使用当前默认模型。建议选择响应快的轻量模型（如 gemini-flash、qwen-turbo），以减少情报组装延迟",
+        "_special": "select_provider"
+      },
+      "reminder_lookback_days": {
+        "description": "本周预警展示范围（天）",
+        "type": "int",
+        "default": 7,
+        "hint": "从今天起往后几天内的提醒纳入「本周预警」板块显示。默认 7 天，最大建议不超过 14 天"
       }
     }
   },
   "exchange_settings": {
-    "description": "📊 实时汇率模块",
+    "description": "📊 汇率模块",
+    "hint": "数据来自 ExchangeRate-API（免费额度每月 1500 次，足够日常使用）",
     "type": "object",
     "items": {
       "enable_exchange": {
@@ -68,53 +86,79 @@
         "default": true
       },
       "exchange_api_key": {
-        "description": "汇率 API Key",
+        "description": "ExchangeRate-API Key",
         "type": "string",
         "default": "",
-        "hint": "前往 exchangerate-api.com 获取"
+        "hint": "前往 https://www.exchangerate-api.com 免费注册获取。留空则汇率板块会显示未配置提示"
       },
       "base_currency": {
-        "description": "基础货币",
+        "description": "本币代码（用于反向换算）",
         "type": "string",
-        "default": "CNY"
+        "default": "CNY",
+        "hint": "即你持有的货币。汇率展示格式为：1 本币 = x 外币 | 100 外币 ≈ y 本币。常用：CNY 人民币、AUD 澳元、USD 美元"
       },
       "target_currencies": {
-        "description": "目标货币代码",
+        "description": "关注的外币代码",
         "type": "string",
         "default": "USD,JPY,EUR,GBP,HKD,AUD",
-        "hint": "用英文逗号隔开"
+        "hint": "英文逗号分隔，如 USD,JPY,EUR,AUD。代码需符合 ISO 4217 标准（三位大写字母）"
       }
     }
   },
   "balance_settings": {
-    "description": "💰 API 余额监控",
+    "description": "💰 AI 余额监控",
+    "hint": "在每日情报中展示所配置 API 账户的当前可用余额，方便及时充值",
     "type": "object",
     "items": {
       "enable_balance": {
         "description": "[开关] 启用 API 余额监控",
         "type": "bool",
-        "default": true
+        "default": true,
+        "hint": "两个 Key 均未填写时，此模块即使开启也不显示任何内容"
       },
       "deepseek_key": {
         "description": "DeepSeek API Key",
         "type": "string",
-        "default": ""
+        "default": "",
+        "hint": "前往 https://platform.deepseek.com 获取。留空则跳过 DeepSeek 余额查询"
       },
       "moonshot_key": {
-        "description": "Moonshot(Kimi) API Key",
+        "description": "Moonshot (Kimi) API Key",
         "type": "string",
-        "default": ""
+        "default": "",
+        "hint": "前往 https://platform.moonshot.cn 获取。留空则跳过 Kimi 余额查询"
       }
     }
   },
   "news_settings": {
-    "description": "📰 每日新闻模块",
+    "description": "📰 新闻模块",
+    "hint": "数据来自「60秒读懂世界」公益 API（viki.moe），内置备用接口，自动切换",
     "type": "object",
     "items": {
       "enable_news": {
-        "description": "[开关] 启用 60s 纯文本新闻",
+        "description": "[开关] 启用每日纯文本新闻",
         "type": "bool",
-        "default": true
+        "default": true,
+        "hint": "开启后每日情报末尾附上当日 60 条简讯，纯文本无图片"
+      }
+    }
+  },
+  "advanced_settings": {
+    "description": "⚙️ 高级设置",
+    "hint": "调整情报组装超时、各模块展示顺序等细节参数",
+    "type": "object",
+    "items": {
+      "request_timeout": {
+        "description": "网络请求超时（秒）",
+        "type": "int",
+        "default": 20,
+        "hint": "天气、汇率、新闻等所有外部接口的统一超时时长。网络较差可适当调大，建议范围 10~60"
+      },
+      "module_order": {
+        "description": "情报板块展示顺序",
+        "type": "string",
+        "default": "weather,reminders,exchange,balance,news",
+        "hint": "用英文逗号分隔模块名，决定情报推送中各板块的排列顺序。可用模块名：weather / reminders / exchange / balance / news。删除某个名称等同于临时隐藏该板块（不影响开关配置）"
       }
     }
   }
