@@ -137,9 +137,9 @@ git clone https://github.com/INstabliTY/astrbot_plugin_Information_Assistant.git
 
 ---
 
-## 📅 更新日志
+## 📅 更新日志（仅重大更新）
 
-### 🚀 v1.3.1（当前版本）
+### 🚀 v1.3.1
 
 **新功能**
 
@@ -162,6 +162,17 @@ git clone https://github.com/INstabliTY/astrbot_plugin_Information_Assistant.git
 <summary><b>📜 点击展开查看历史版本</b></summary>
 
 <br>
+
+### v1.3.1
+- ✨ AI 智能提醒摘要：每条提醒原文自动经 LLM 提炼为简洁一行摘要（格式：`【标签】核心事项  时间描述`），告别冗长原文。LLM 不可用时自动降级为截取原文前 60 字，不影响情报推送。
+- ✨ 直读系统定时任务：直接读取 AstrBot 内置数据库（`cron_jobs`）中通过 AI 对话添加的定时提醒，无需任何迁移操作，历史提醒自动呈现。
+- ✨ 自定义板块展示顺序：新增 `module_order` 配置项，用逗号分隔模块名即可自由排列情报各板块顺序。
+- ✨ 指定提醒摘要模型：可在配置面板快速选择专门用于提炼摘要的 AI 模型，与对话模型解耦。
+- ✨ 本周预警范围可配置：新增 `reminder_lookback_days`，自定义「本周预警」板块的展示天数（默认 7 天）。
+- ✨ 网络超时可配置：新增 `request_timeout`，统一控制所有外部接口的超时时长。
+- ✨ 新增 `/提醒诊断` 指令：一键显示数据库路径、提醒条目及时区状态，快速定位"有提醒却不显示"等问题。
+- 🔧 汇率展示改为双向格式（`1 本币 = x 外币 | 100 外币 ≈ y 本币`），消除歧义。
+- 🗑️ 移除 `add_information_reminder` LLM 工具（现已直接读取系统数据库，该工具不再必要）。
 
 ### v1.3.0
 
