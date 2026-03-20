@@ -4,7 +4,7 @@ AstrBot 资讯助理插件 (Information Assistant)
 聚合天气、提醒、纯文本新闻、汇率与 API 余额监控。
 
 Author : INstabliTY
-Version: v1.3.1
+Version: v1.3.2
 """
 
 import asyncio
@@ -55,9 +55,15 @@ class InformationAssistantPlugin(Star):
         # 文件操作锁：防止并发写入时后写覆盖先写，导致提醒数据丢失。
         self._file_lock: asyncio.Lock = asyncio.Lock()
 
-        # 定时推送任务在 on_loaded() 中延迟启动（框架生命周期钩子），
-        # 确保 AstrBot 异步上下文完全就绪后再创建任务，避免 RuntimeError。
+        # 按框架指南推荐，直接在 __init__ 中用 asyncio.create_task() 注册后台任务。
+        # AstrBot 的插件加载机制保证 __init__ 在事件循环运行后才被调用，
+        # 因此 create_task 在此处始终安全。
         self._push_task: asyncio.Task | None = None
+        if self.enable_push:
+            self._push_task = asyncio.create_task(self._push_loop())
+            logger.info(f"[资讯助理] 定时任务已启动，每天 {self.push_time} 推送。")
+        else:
+            logger.info("[资讯助理] 定时推送已关闭，以纯被动模式运行。")
 
     def _parse_config(self, cfg: dict) -> None:
         """
@@ -186,7 +192,8 @@ class InformationAssistantPlugin(Star):
             weather_url = (
                 f"https://api.open-meteo.com/v1/forecast"
                 f"?latitude={lat}&longitude={lon}"
-                f"&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max"
+                f"&daily=temperature_2m_max,temperature_2m_min"
+                f",precipitation_probability_max,apparent_temperature_max"
                 f"&timezone=auto"
             )
             async with session.get(weather_url) as resp:
@@ -198,19 +205,26 @@ class InformationAssistantPlugin(Star):
             rain_prob = daily["precipitation_probability_max"][0]
 
             umbrella = "☔ 降水概率高，出门带伞！" if rain_prob > 40 else "🌂 降水概率低，无需带伞。"
-            avg_temp = (temp_max + temp_min) / 2
-            if avg_temp < 10:
-                clothes = "🧥 天寒，建议厚外套/羽绒服。"
-            elif avg_temp < 20:
-                clothes = "🧣 微凉，建议夹克/薄毛衣。"
-            elif avg_temp < 28:
-                clothes = "👕 舒适，建议长袖/薄外套。"
+            feels_max = daily.get("apparent_temperature_max", [None])[0]
+            # 以体感最高温为穿衣参考（更符合实际感受）；不可用时退回实际最高温
+            ref_temp = feels_max if feels_max is not None else temp_max
+            if ref_temp >= 32:
+                clothes = "🩳 高温酷热，建议清凉短袖/短裤，注意防晒补水。"
+            elif ref_temp >= 26:
+                clothes = "👕 温热，短袖即可，外出注意防晒。"
+            elif ref_temp >= 20:
+                clothes = "🧢 温暖舒适，轻薄上衣即可，早晚可备薄外套。"
+            elif ref_temp >= 14:
+                clothes = "🧥 微凉，建议长袖或薄外套。"
+            elif ref_temp >= 6:
+                clothes = "🧣 较冷，建议加厚外套或毛衣。"
             else:
-                clothes = "🩳 炎热，建议清凉夏装。"
+                clothes = "🥶 严寒，建议厚羽绒服，注意保暖防风。"
 
+            feels_line = f"  （体感最高 {feels_max:.0f}℃）" if feels_max is not None else ""
             return (
                 f"🌤️ 【{self.city}今日天气】\n"
-                f"🌡️ 温度：{temp_min}℃ ~ {temp_max}℃\n"
+                f"🌡️ 温度：{temp_min}℃ ~ {temp_max}℃{feels_line}\n"
                 f"🌧️ 降水概率：{rain_prob}%\n"
                 f"{umbrella}\n{clothes}"
             )
@@ -457,7 +471,12 @@ class InformationAssistantPlugin(Star):
                     # description 即提醒全文，始终有值
                     content = (row["description"] or row["name"] or "").strip()
                     if content:
-                        results.append({"date": date_str, "content": content})
+                        run_time = dt_local.strftime("%H:%M")
+                        results.append({
+                            "date": date_str,
+                            "content": content,
+                            "run_time": run_time,
+                        })
 
             except sqlite3.OperationalError as exc:
                 logger.debug(f"[资讯助理] 系统任务数据库只读访问：{exc}")
@@ -471,7 +490,7 @@ class InformationAssistantPlugin(Star):
             logger.warning(f"[资讯助理] 系统任务查询异常：{exc}")
             return []
 
-    async def _parse_reminder_text(self, raw: str, date_str: str) -> str:
+    async def _parse_reminder_text(self, raw: str, date_str: str, run_time: str = "") -> str:
         """
         用 AstrBot 内置 LLM 将原始提醒文本提炼为一行简洁摘要。
         格式：{标签}{核心事项}  {时间描述}
@@ -491,31 +510,48 @@ class InformationAssistantPlugin(Star):
         if provider is None:
             return raw[:60] + ("…" if len(raw) > 60 else "")
 
+        time_info = ("，该提醒的实际执行时间为 " + run_time) if run_time else ""
+        time_anchor = run_time if run_time else date_str
         prompt_lines = [
-            f"今天是 {date_str}，请将以下提醒文本提炼为一行简洁摘要。",
-            "输出格式严格为：{标签}{核心事项}  {时间描述}",
-            "提取规则：",
-            "1.标签：方括号内的课程/项目名，保留「」，删去『预警』等修饰词，无方括号则省略标签",
-            "2.核心事项：最简动宾短语，去掉解释说明和疑问句",
-            "3.时间：保留『明天/后天/周X』等相对词，若有括号注释则一并保留",
-            "4.格式：标签和核心事项之间无空格，核心事项和时间之间用两个空格分隔",
-            "5.只输出这一行结果，不要任何解释",
-            f"原始提醒：{raw}",
+            "今天是 " + date_str + time_info + "。",
+            "请将以下提醒文本提炼为一行简洁摘要，严格按格式输出：",
+            "  「标签」核心事项  时间描述",
+            "规则（必须遵守）：",
+            "1. 标签：原文【】内的课程/项目名，用「」包裹；若无方括号则省略标签",
+            "2. 核心事项：最简动宾短语，删去解释、提问、感叹句",
+            "3. 时间描述：基于实际执行时间 " + time_anchor + " 生成，",
+            "   ★ 严禁直接复制原文中出现的「明天」「后天」「本周」等相对时间词",
+            "   ★ 若有具体时刻（如 09:00 或 08:00-11:00），必须完整输出",
+            "   ★ 若无具体时刻，时间描述部分留空，不要输出任何内容",
+            "4. 只输出结果这一行，不要加任何解释",
+            "原始提醒：" + raw,
         ]
         prompt = "\n".join(prompt_lines)
 
-        try:
-            resp = await provider.text_chat(
-                prompt=prompt,
-                session_id=None,
-                image_urls=[],
-                func_tool=None,
-            )
-            first_line = resp.completion_text.strip().split("\n")[0].strip()
-            return first_line if first_line else raw[:60]
-        except Exception as exc:
-            logger.debug(f"[资讯助理] 提醒格式化 LLM 调用失败：{exc}")
-            return raw[:60] + ("…" if len(raw) > 60 else "")
+        # 最多重试 2 次，遇到 429/过载错误时指数退避等待
+        last_exc: Exception | None = None
+        for attempt in range(3):
+            try:
+                resp = await provider.text_chat(
+                    prompt=prompt,
+                    session_id=None,
+                    image_urls=[],
+                    func_tool=None,
+                )
+                first_line = resp.completion_text.strip().split("\n")[0].strip()
+                return first_line if first_line else raw[:60]
+            except Exception as exc:
+                last_exc = exc
+                exc_str = str(exc)
+                # 429 / 过载 / 限流 → 等待后重试；其他错误直接降级
+                if any(k in exc_str for k in ("429", "overload", "rate_limit", "too many")):
+                    wait = 3 * (attempt + 1)  # 3s, 6s
+                    logger.debug(f"[资讯助理] 提醒格式化遇到限流（{exc_str[:60]}），{wait}s 后重试（第{attempt+1}次）")
+                    await asyncio.sleep(wait)
+                else:
+                    break  # 非限流错误，不重试
+        logger.debug(f"[资讯助理] 提醒格式化 LLM 调用失败：{last_exc}")
+        return raw[:60] + ("…" if len(raw) > 60 else "")
 
     async def format_reminders(self) -> str:
         """
@@ -567,42 +603,80 @@ class InformationAssistantPlugin(Star):
         if not today_items and not week_items:
             return "📝 【提醒事项】近期无安排，享受生活吧！"
 
-        # 并发格式化所有条目（LLM 调用并发，不串行等待）
-        all_items = [
-            (r, today_str, True) for r in today_items
-        ] + [
-            (r, r.get("date", today_str), False) for r in week_items
-        ]
+        # ── 相对日期标签生成（未来提醒用）─────────────────────────────────
+        def _relative_label(item_date_str: str) -> str:
+            """将 YYYY-MM-DD 转为 MM-DD（明天/后天/周几/下周几）格式。"""
+            try:
+                item_date = datetime.date.fromisoformat(item_date_str)
+            except ValueError:
+                return item_date_str[5:]
+            today_date = now.date()
+            delta = (item_date - today_date).days
+            mm_dd = item_date.strftime("%m-%d")
+            weekday_cn = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
+            if delta == 1:
+                rel = "明天"
+            elif delta == 2:
+                rel = "后天"
+            elif delta <= 6:
+                rel = weekday_cn[item_date.weekday()]
+            else:
+                rel = "下" + weekday_cn[item_date.weekday()]
+            return mm_dd + "（" + rel + "）"
 
-        async def _fmt(r: dict, date_for_ctx: str) -> str:
-            raw = r.get("content", "")
-            return await self._parse_reminder_text(raw, date_for_ctx)
+        # ── 限速 LLM 格式化（最多 2 路并发，避免触发限流）────────────────────
+        all_items = (
+            [(r, today_str, True) for r in today_items]
+            + [(r, r.get("date", today_str), False) for r in week_items]
+        )
+
+        # Semaphore 限制同时进行的 LLM 调用数量，防止并发过高触发 429
+        _llm_sem = asyncio.Semaphore(2)
+
+        async def _fmt(r: dict, date_for_ctx: str, idx: int) -> str:
+            async with _llm_sem:
+                # 每次调用前稍作错峰，降低短时并发压力
+                if idx > 0:
+                    await asyncio.sleep(0.5 * idx)
+                return await self._parse_reminder_text(
+                    r.get("content", ""),
+                    date_for_ctx,
+                    r.get("run_time", ""),
+                )
 
         fmt_results = await asyncio.gather(
-            *[_fmt(r, date_ctx) for r, date_ctx, _ in all_items],
+            *[_fmt(r, date_ctx, i) for i, (r, date_ctx, _) in enumerate(all_items)],
             return_exceptions=True,
         )
 
-        # 重新分配格式化结果到 today / week 桶
-        fmt_today: list[str] = []
-        fmt_week: list[tuple[str, str]] = []  # (date[5:], formatted_text)
-        n_today = len(today_items)
+        # ── 组装输出 ─────────────────────────────────────────────────────────
+        fmt_today: list[tuple[str, str]] = []   # (run_time, text)
+        fmt_future: list[tuple[str, str]] = []  # (label, text)
 
         for i, (r, date_ctx, is_today) in enumerate(all_items):
             result = fmt_results[i]
             text = result if isinstance(result, str) else r.get("content", "")[:60]
+            run_time = r.get("run_time", "")
             if is_today:
-                fmt_today.append(text)
+                fmt_today.append((run_time, text))
             else:
-                fmt_week.append((r.get("date", "?")[5:], text))
+                label = _relative_label(r.get("date", ""))
+                fmt_future.append((label, text))
 
         parts: list[str] = []
         if fmt_today:
-            lines = "\n".join(f"✅ {t}" for t in fmt_today)
-            parts.append(f"📝 【今日待办】\n{lines}")
-        if fmt_week:
-            lines = "\n".join(f"📅 {d}: {t}" for d, t in fmt_week)
-            parts.append(f"📝 【本周预警】\n{lines}")
+            # 有时间的按 HH:MM 排序，无时间的排在末尾
+            fmt_today.sort(key=lambda x: x[0] if x[0] else "99:99")
+            lines_today = []
+            for run_time, text in fmt_today:
+                if run_time:
+                    lines_today.append(run_time + " " + text)
+                else:
+                    lines_today.append(text)
+            parts.append("📝 【今日待办】\n" + "\n".join("🔔 " + t for t in lines_today))
+        if fmt_future:
+            lines_future = [label + ": " + text for label, text in fmt_future]
+            parts.append("📅 【未来提醒】\n" + "\n".join("📌 " + t for t in lines_future))
 
         return "\n\n".join(parts)
 
@@ -947,22 +1021,8 @@ class InformationAssistantPlugin(Star):
         yield event.plain_result(result)
 
     # -----------------------------------------------------------------------
-    # 生命周期钩子
+    # 生命周期
     # -----------------------------------------------------------------------
-
-    async def on_loaded(self) -> None:
-        """
-        框架加载完成钩子：在 AstrBot 异步上下文完全就绪后启动定时推送任务。
-        相比在 __init__ 中直接调用 asyncio.create_task()，此处能保证
-        event loop 已经 running，不会触发 RuntimeError。
-        """
-        if not self.enable_push:
-            logger.info("[资讯助理] 定时推送已关闭，以纯被动模式运行。")
-            return
-        if self._push_task is not None and not self._push_task.done():
-            return  # 防止重复启动
-        self._push_task = asyncio.create_task(self._push_loop())
-        logger.info(f"[资讯助理] 定时任务已启动，每天 {self.push_time} 推送。")
 
     async def terminate(self) -> None:
         """插件卸载/重载时，取消后台推送任务。"""
