@@ -6,7 +6,7 @@
 
 **让你的 AstrBot 化身个人情报中枢：天气、日程、新闻速报、汇率、资产监控一网打尽**
 
-[![version](https://img.shields.io/badge/version-1.3.9-blue.svg)](#) [![license](https://img.shields.io/badge/license-MIT-green.svg)](#) [![AstrBot](https://img.shields.io/badge/AstrBot->=4.20.0-orange.svg)](#)
+[![version](https://img.shields.io/badge/version-1.4.0-blue.svg)](#) [![license](https://img.shields.io/badge/license-MIT-green.svg)](#) [![AstrBot](https://img.shields.io/badge/AstrBot->=4.20.0-orange.svg)](#)
 
 </div>
 
@@ -131,7 +131,7 @@ git clone https://github.com/INstabliTY/astrbot_plugin_Information_Assistant.git
 
 ## ⚠️ 免责声明
 
-本项目由个人开发者维护，目前仅在 **Telegram** 平台完整测试。QQ、飞书、微信等平台的长文本换行机制存在差异，若出现排版问题请提 Issue 反馈。
+本项目由个人开发者维护，目前仅在 **Telegram**，**QQ**，**个人微信**平台完整测试。飞书、钉钉等平台的长文本换行机制存在差异，若出现问题请提 Issue 反馈。
 
 新闻数据均来自开源公益接口，对内容的真实性及时效性不作保证，仅供参考。
 
